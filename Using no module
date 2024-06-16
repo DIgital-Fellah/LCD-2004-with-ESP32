@@ -1,0 +1,104 @@
+#include <Wire.h>
+
+#define LCD_ADDRESS_1 0x27
+#define LCD_ADDRESS_2 0x3F
+
+#define LCD_CMD 0
+#define LCD_DATA 1
+#define BACKLIGHT 0x08
+
+uint8_t lcd_address;
+uint8_t backlight_state = BACKLIGHT;
+
+// Function to send a command or data to the LCD with the current backlight state
+void lcdSend(uint8_t value, uint8_t mode) {
+  uint8_t highNib = value & 0xF0;
+  uint8_t lowNib = (value << 4) & 0xF0;
+  Wire.beginTransmission(lcd_address);
+  Wire.write(highNib | mode | backlight_state | 0x04);  // En high
+  Wire.write(highNib | mode | backlight_state);        // En low
+  Wire.write(lowNib | mode | backlight_state | 0x04);  // En high
+  Wire.write(lowNib | mode | backlight_state);         // En low
+  Wire.endTransmission();
+}
+
+// Function to initialize the LCD
+void lcdInit() {
+  lcdSend(0x03, LCD_CMD); // Initialize
+  lcdSend(0x03, LCD_CMD); // Initialize
+  lcdSend(0x03, LCD_CMD); // Initialize
+  lcdSend(0x02, LCD_CMD); // Initialize
+
+  lcdSend(0x28, LCD_CMD); // Function set: 4-bit, 2 lines, 5x8 dots
+  lcdSend(0x0C, LCD_CMD); // Display control: Display ON, Cursor OFF, Blink OFF
+  lcdSend(0x06, LCD_CMD); // Entry mode set: Increment cursor, No shift
+  lcdSend(0x01, LCD_CMD); // Clear display
+  delay(5);               // Wait for the LCD to process the clear command
+}
+
+// Function to set the cursor position
+void lcdSetCursor(uint8_t col, uint8_t row) {
+  uint8_t row_offsets[] = { 0x00, 0x40, 0x14, 0x54 };
+  lcdSend(0x80 | (col + row_offsets[row]), LCD_CMD);
+}
+
+// Function to print a string to the LCD
+void lcdPrint(const char* str) {
+  while (*str) {
+    lcdSend(*str++, LCD_DATA);
+  }
+}
+
+// Function to test if an I2C address is responsive
+bool testI2CAddress(uint8_t address) {
+  Wire.beginTransmission(address);
+  return (Wire.endTransmission() == 0);
+}
+
+// Function to turn on the backlight
+void lcdBacklightOn() {
+  backlight_state = BACKLIGHT;
+  lcdSend(0x00, LCD_CMD); // Update the backlight state
+}
+
+// Function to turn off the backlight
+void lcdBacklightOff() {
+  backlight_state = 0x00;
+  lcdSend(0x00, LCD_CMD); // Update the backlight state
+}
+
+void setup() {
+  Wire.begin(); // Initialize I2C communication
+
+  // Check if the LCD is at address 0x27
+  if (testI2CAddress(LCD_ADDRESS_1)) {
+    lcd_address = LCD_ADDRESS_1;
+  }
+  // Check if the LCD is at address 0x3F
+  else if (testI2CAddress(LCD_ADDRESS_2)) {
+    lcd_address = LCD_ADDRESS_2;
+  }
+  // If neither address responds, halt
+  else {
+    while (true) {
+      // Optionally, you could blink an LED to indicate error
+    }
+  }
+
+  lcdInit(); // Initialize the LCD
+  lcdBacklightOn(); // Turn on the backlight
+
+  // Print numbers on the LCD without using a loop
+  lcdSetCursor(0, 0);
+  lcdPrint("Hey, this is LCD2004");
+  lcdSetCursor(0, 1);
+  lcdPrint("My job is to display");
+  lcdSetCursor(0, 2);
+  lcdPrint("any letter or number");
+  lcdSetCursor(0, 3);
+  lcdPrint("What's on your mind?");
+}
+
+void loop() {
+  // No need for any code in the loop
+}
